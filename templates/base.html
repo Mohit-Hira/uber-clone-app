@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Uber App{% endblock %}</title>
+
+  <!-- Shared Styles -->
+  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.20.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.20.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.20.0/firebase-firestore-compat.js"></script>
+
+  {% block head_scripts %}{% endblock %}
+  <style>
+    body {
+      margin: 0;
+      font-family: "Poppins", sans-serif;
+      background-color: #fafafa;
+      color: #222;
+    }
+    header {
+      background: #111;
+      color: #fff;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+    nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 20px;
+    }
+    .nav-links a {
+      color: #fff;
+      text-decoration: none;
+      margin-right: 20px;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover {
+      color: #00c853;
+    }
+    #logout-btn {
+      background: #e53935;
+      border: none;
+      color: #fff;
+      padding: 8px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.3s;
+    }
+    #logout-btn:hover {
+      background: #c62828;
+    }
+    main {
+      padding: 20px;
+      min-height: calc(100vh - 70px);
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <nav>
+      {% if user_token %}
+      
+      <div class="nav-links">
+        <a href="/home">Home</a>
+        <a href="/rider">Rider</a>
+        <a href="/driver">Driver</a>
+      </div>
+      <div>
+        <button id="logout-btn">Logout</button>
+      </div>
+      {% endif %}
+    </nav>
+  </header>
+
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  <script>
+    // Initialize Firebase globally if config is injected on pages
+    if (typeof firebaseConfig !== 'undefined' && !firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+
+    // Logout button functionality
+    document.addEventListener('DOMContentLoaded', () => {
+      const logoutBtn = document.getElementById('logout-btn');
+      if (logoutBtn) {
+        logoutBtn.addEventListener('click', async () => {
+          try {
+            if (firebase?.auth) await firebase.auth().signOut();
+          } catch (e) {
+            console.log("Sign out error:", e);
+          }
+          document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
+          await fetch("/logout", { method: "POST" }).catch(() => {});
+          window.location.href = "/";
+        });
+      }
+    });
+  </script>
+
+  <script type="module" src="{{ url_for('static', path='app.js') }}"></script>
+</body>
+</html>
