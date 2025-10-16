@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+{% block title %}Login / Sign Up{% endblock %}
+
+{% block content %}
+<style>
+body {display:flex;justify-content:center;align-items:center;height:100vh;margin:0;font-family:Poppins,sans-serif;background:linear-gradient(135deg,#00c853,#00695c);}
+.auth-box{background:#fff;padding:30px 25px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.15);width:100%;max-width:400px;text-align:center;}
+input{width:100%;padding:10px;margin:8px 0;border-radius:6px;border:1px solid #ccc;font-size:15px;}
+button{width:100%;padding:12px;background:#00c853;color:#fff;border:none;border-radius:6px;font-size:16px;font-weight:600;cursor:pointer;margin-top:10px;transition:background .3s;}
+button:hover{background:#009c43;}
+.link{margin-top:12px;font-size:14px;color:#00695c;cursor:pointer;}
+#error{color:#e53935;margin-top:10px;}
+.success{color:#00c853;}
+</style>
+
+<div class="auth-box">
+  <h1 id="formTitle">Login</h1>
+  <input type="email" id="email" placeholder="Email" required>
+  <input type="password" id="password" placeholder="Password" required>
+  <button id="loginBtn">Login</button>
+  <div class="link" id="toggleForm">Create account</div>
+  <div class="link" id="resetLink">Forgot password?</div>
+  <div id="error"></div>
+</div>
+
+<script type="module">
+import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBZegGPZx6MvrNvRQsFCvx2qkJ62oIkULM",
+  authDomain: "mohit-45547.firebaseapp.com",
+  projectId: "mohit-45547",
+  storageBucket: "mohit-45547.firebasestorage.app",
+  messagingSenderId: "778528943574",
+  appId: "1:778528943574:web:ccd84ce0fad485619b0877",
+  measurementId: "G-ES0PK3WFT3"
+};
+
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const errorBox = document.getElementById("error");
+const formTitle = document.getElementById("formTitle");
+const toggleForm = document.getElementById("toggleForm");
+let isLogin = true;
+
+function showMsg(msg, success=false){errorBox.textContent=msg;errorBox.className=success?'success':'';}
+
+toggleForm.onclick = ()=> {
+  isLogin=!isLogin;
+  formTitle.textContent=isLogin?'Login':'Sign Up';
+  document.getElementById("loginBtn").textContent=isLogin?'Login':'Sign Up';
+  toggleForm.textContent=isLogin?'Create account':'Already have an account? Login';
+  showMsg('');
+};
+
+async function sendToken(idToken){
+  await fetch("/sessionLogin",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({idToken})});
+}
+
+document.getElementById("loginBtn").onclick = async()=>{
+  const email=document.getElementById("email").value.trim();
+  const pass=document.getElementById("password").value.trim();
+  if(!email||!pass)return showMsg("Enter email & password");
+  try{
+    const cred=isLogin?await signInWithEmailAndPassword(auth,email,pass):await createUserWithEmailAndPassword(auth,email,pass);
+    const token=await cred.user.getIdToken(true);
+    await sendToken(token);
+    showMsg("Success!",true);
+    setTimeout(()=>window.location.href="/home",1000);
+  }catch(e){showMsg(e.message);}
+};
+
+document.getElementById("resetLink").onclick=async()=>{
+  const email=document.getElementById("email").value.trim();
+  if(!email)return showMsg("Enter your email");
+  try{await sendPasswordResetEmail(auth,email);showMsg("Password reset email sent!",true);}
+  catch(e){showMsg(e.message);}
+};
+
+// Auto token refresh every 50min
+onAuthStateChanged(auth, async(user)=>{
+  if(user){
+    const token=await user.getIdToken(true);
+    await sendToken(token);
+    setInterval(async()=>{
+      const refreshed=await user.getIdToken(true);
+      await sendToken(refreshed);
+    },50*60*1000);
+  }
+});
+</script>
+{% endblock %}
