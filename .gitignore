@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+env/
+venv/
+ENV/
+*.env
+
+# IDEs
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Firebase / Google service account
+*.json
+
+# Node / JS
+node_modules/
+*.log
+
+# Uvicorn / FastAPI
+*.db
+*.sqlite3
+
+# Static / build artifacts
+/static/*.map
+/static/*.js.map
+
+# Byte-compiled / caching
+*.pyc
+*.pyo
+*.pyd
+
+# Others
+*.swp

@@ -1,0 +1,192 @@
+{% extends 'base.html' %}
+{% block title %}Login - Uber App{% endblock %}
+
+{% block content %}
+<style>
+.login-container {
+  max-width: 460px;
+  margin: 60px auto;
+  padding: 24px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 6px 24px rgba(0,0,0,.08);
+}
+h1 { text-align:center; margin-bottom: 8px; }
+.field { margin: 8px 0; }
+input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 15px; }
+button { width: 100%; padding: 12px; border-radius: 8px; border: none; background: #111; color: #fff; cursor: pointer; margin-top: 8px; }
+.small { font-size: 14px; color: #666; text-align:center; margin-top: 10px; }
+.link { color: #007bff; cursor: pointer; text-decoration: underline; }
+.message { margin-top: 12px; min-height:18px; }
+.error { color: #b00020; }
+.success { color: #007700; }
+.modal { display:none; position:fixed; inset:0; background: rgba(0,0,0,.4); justify-content:center; align-items:center; z-index:2000; }
+.modal .box { background:#fff; padding:20px; border-radius:10px; width: 320px; }
+</style>
+
+<div class="login-container">
+  <h1>Welcome to Uber</h1>
+
+  <div class="field">
+    <input id="email" type="email" placeholder="Email" />
+  </div>
+  <div class="field">
+    <input id="password" type="password" placeholder="Password" />
+  </div>
+  <button id="login-btn">Sign In</button>
+
+  <div class="small">
+    <span class="link" id="open-signup">Sign up</span> ·
+    <span class="link" id="open-forgot">Forgot password?</span>
+  </div>
+
+  <div id="message" class="message" role="status" aria-live="polite"></div>
+</div>
+
+<!-- Signup Modal -->
+<div id="modal-signup" class="modal">
+  <div class="box">
+    <h3>Create account</h3>
+    <input id="signup-email" type="email" placeholder="Email" />
+    <input id="signup-password" type="password" placeholder="Password (6+ chars)" />
+    <button id="signup-btn">Create account</button>
+    <div style="text-align:right; margin-top:8px;"><span class="link" id="close-signup">Close</span></div>
+  </div>
+</div>
+
+<!-- Forgot modal -->
+<div id="modal-forgot" class="modal">
+  <div class="box">
+    <h3>Reset password</h3>
+    <input id="forgot-email" type="email" placeholder="Registered email" />
+    <button id="forgot-btn">Send reset email</button>
+    <div style="text-align:right; margin-top:8px;"><span class="link" id="close-forgot">Close</span></div>
+  </div>
+</div>
+
+<script>
+/* IMPORTANT: server must render firebase_config JSON into template context */
+const firebaseConfig = JSON.parse('{{ firebase_config | safe }}');
+
+const msgEl = document.getElementById('message');
+function showMsg(text, isError = true) {
+  msgEl.textContent = text;
+  msgEl.className = 'message ' + (isError ? 'error' : 'success');
+  console[isError ? 'error' : 'log']('[LOGIN] ' + text);
+}
+
+// Sanity checks
+if (!firebaseConfig || !firebaseConfig.apiKey) {
+  showMsg('Firebase configuration missing. Contact server admin.', true);
+  throw new Error('Missing firebase_config in template context.');
+}
+if (!window.firebase) {
+  showMsg('Firebase library not loaded. Ensure base.html includes firebase scripts.', true);
+  throw new Error('Firebase not loaded');
+}
+
+// Initialize firebase compat if not already
+if (!firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
+  console.log('[LOGIN] Firebase initialized.');
+} else {
+  console.log('[LOGIN] Firebase already initialized.');
+}
+
+const auth = firebase.auth();
+
+// Helper: POST idToken to server to create server-side session cookie (optional)
+async function sendTokenToServer(idToken) {
+  try {
+    const resp = await fetch('/sessionLogin', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ idToken })
+    });
+    console.log('[LOGIN] /sessionLogin status', resp.status);
+    if (!resp.ok) {
+      const t = await resp.text();
+      console.warn('[LOGIN] /sessionLogin response:', t);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn('[LOGIN] /sessionLogin failed', err);
+    return false;
+  }
+}
+
+// Sign in handler
+document.getElementById('login-btn').addEventListener('click', async () => {
+  msgEl.textContent = '';
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  if (!email || !password) { showMsg('Please enter email and password'); return; }
+
+  try {
+    console.log('[LOGIN] signInWithEmailAndPassword', email);
+    const cred = await auth.signInWithEmailAndPassword(email, password);
+    const token = await cred.user.getIdToken();
+    const ok = await sendTokenToServer(token);
+    if (!ok) document.cookie = `token=${token}; path=/`;
+    showMsg('Sign in successful — redirecting...', false);
+    setTimeout(() => window.location.href = '/home', 700);
+  } catch (err) {
+    showMsg(err.message || 'Sign-in failed');
+    console.error('[LOGIN] signIn error', err);
+  }
+});
+
+/* ---------- Signup UI ---------- */
+const modalSignup = document.getElementById('modal-signup');
+document.getElementById('open-signup').addEventListener('click', () => modalSignup.style.display = 'flex');
+document.getElementById('close-signup').addEventListener('click', () => modalSignup.style.display = 'none');
+
+document.getElementById('signup-btn').addEventListener('click', async () => {
+  const email = document.getElementById('signup-email').value.trim();
+  const password = document.getElementById('signup-password').value;
+  if (!email || !password) { showMsg('Enter email and password for sign up'); return; }
+  if (password.length < 6) { showMsg('Password must be at least 6 characters'); return; }
+
+  try {
+    console.log('[LOGIN] createUserWithEmailAndPassword', email);
+    const cred = await auth.createUserWithEmailAndPassword(email, password);
+    const token = await cred.user.getIdToken();
+    const ok = await sendTokenToServer(token);
+    if (!ok) document.cookie = `token=${token}; path=/`;
+    showMsg('Account created — redirecting...', false);
+    modalSignup.style.display = 'none';
+    setTimeout(() => window.location.href = '/home', 700);
+  } catch (err) {
+    showMsg(err.message || 'Sign-up failed');
+    console.error('[LOGIN] sign-up error', err);
+  }
+});
+
+/* ---------- Forgot password UI ---------- */
+const modalForgot = document.getElementById('modal-forgot');
+document.getElementById('open-forgot').addEventListener('click', () => modalForgot.style.display = 'flex');
+document.getElementById('close-forgot').addEventListener('click', () => modalForgot.style.display = 'none');
+
+document.getElementById('forgot-btn').addEventListener('click', async () => {
+  const email = document.getElementById('forgot-email').value.trim();
+  if (!email) { showMsg('Enter your registered email'); return; }
+  try {
+    console.log('[LOGIN] sendPasswordResetEmail', email);
+    await auth.sendPasswordResetEmail(email);
+    showMsg('Password reset email sent — check your inbox (and spam).', false);
+    modalForgot.style.display = 'none';
+  } catch (err) {
+    showMsg(err.message || 'Failed to send reset email');
+    console.error('[LOGIN] forgot password error', err);
+  }
+});
+
+/* Close modals when clicking outside box */
+[modalSignup, modalForgot].forEach(m => {
+  m.addEventListener('click', (e) => {
+    if (e.target === m) m.style.display = 'none';
+  });
+});
+</script>
+{% endblock %}
